@@ -1,0 +1,340 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Upload, Download, FileText, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+export default function SQLDummyDataGenerator() {
+  const [file, setFile] = useState<File | null>(null)
+  const [sqlContent, setSqlContent] = useState("")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [generatedData, setGeneratedData] = useState("")
+  const [streamingData, setStreamingData] = useState("")
+  const [error, setError] = useState("")
+  const [inputMethod, setInputMethod] = useState<"upload" | "paste">("upload")
+  const [debugInfo, setDebugInfo] = useState("")
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = event.target.files?.[0]
+    if ((uploadedFile && uploadedFile.type === "application/sql") || uploadedFile?.name.endsWith(".sql")) {
+      setFile(uploadedFile)
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setSqlContent(e.target?.result as string)
+      }
+      reader.readAsText(uploadedFile)
+      setError("")
+    } else {
+      setError("Please upload a valid SQL file")
+    }
+  }
+
+  const processSQL = async () => {
+    if (!sqlContent) {
+      setError("Please provide SQL schema first")
+      return
+    }
+
+    setIsProcessing(true)
+    setError("")
+    setGeneratedData("")
+    setStreamingData("")
+    setDebugInfo("Starting request...")
+
+    try {
+      setDebugInfo("Sending request to API...")
+
+      const response = await fetch("/api/generate-dummy-data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sqlSchema: sqlContent }),
+      })
+
+      setDebugInfo(`Response status: ${response.status}`)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+        throw new Error(errorData.error || `HTTP ${response.status}`)
+      }
+
+      if (!response.body) {
+        throw new Error("No response body received")
+      }
+
+      setDebugInfo("Processing stream...")
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulatedData = ""
+      let chunkCount = 0
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) {
+          setDebugInfo(`Stream completed. Total chunks: ${chunkCount}`)
+          break
+        }
+
+        chunkCount++
+        const chunk = decoder.decode(value, { stream: true })
+        setDebugInfo(`Processing chunk ${chunkCount}...`)
+
+        // Handle different streaming formats
+        const lines = chunk.split("\n")
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              // Try parsing as JSON first
+              if (line.startsWith("0:")) {
+                const jsonStr = line.slice(2)
+                const parsed = JSON.parse(jsonStr)
+                if (parsed.type === "text-delta" && parsed.textDelta) {
+                  accumulatedData += parsed.textDelta
+                  setStreamingData(accumulatedData)
+                }
+              } else if (line.startsWith("data: ")) {
+                // Handle Server-Sent Events format
+                const jsonStr = line.slice(6)
+                if (jsonStr !== "[DONE]") {
+                  const parsed = JSON.parse(jsonStr)
+                  if (parsed.choices?.[0]?.delta?.content) {
+                    accumulatedData += parsed.choices[0].delta.content
+                    setStreamingData(accumulatedData)
+                  }
+                }
+              } else {
+                // Try direct text
+                accumulatedData += line
+                setStreamingData(accumulatedData)
+              }
+            } catch (parseError) {
+              // If JSON parsing fails, treat as plain text
+              console.log("Parse error, treating as text:", line.substring(0, 50))
+              accumulatedData += line
+              setStreamingData(accumulatedData)
+            }
+          }
+        }
+      }
+
+      setGeneratedData(accumulatedData)
+      setDebugInfo(`Generation complete. Total length: ${accumulatedData.length}`)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
+      setError(`Error: ${errorMessage}`)
+      setDebugInfo(`Error: ${errorMessage}`)
+      console.error("Processing error:", err)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const downloadResults = () => {
+    const dataToDownload = generatedData || streamingData
+    const blob = new Blob([dataToDownload], { type: "text/sql" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "dummy_data.sql"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const resetProcess = () => {
+    setFile(null)
+    setSqlContent("")
+    setIsProcessing(false)
+    setGeneratedData("")
+    setStreamingData("")
+    setError("")
+    setDebugInfo("")
+    setInputMethod("upload")
+  }
+
+  const displayData = generatedData || streamingData
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">SQL Dummy Data Generator</h1>
+          <p className="text-lg text-gray-600">Upload your SQL schema and let AI generate realistic dummy data</p>
+        </div>
+
+        {/* Input Method Selection */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>SQL Schema Input</CardTitle>
+            <CardDescription>Choose how you want to provide your SQL schema</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Method Selection Tabs */}
+              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setInputMethod("upload")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    inputMethod === "upload" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <Upload className="w-4 h-4 inline mr-2" />
+                  Upload File
+                </button>
+                <button
+                  onClick={() => setInputMethod("paste")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                    inputMethod === "paste" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <FileText className="w-4 h-4 inline mr-2" />
+                  Paste Text
+                </button>
+              </div>
+
+              {/* File Upload Method */}
+              {inputMethod === "upload" && (
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" accept=".sql" onChange={handleFileUpload} className="hidden" id="sql-upload" />
+                    <label htmlFor="sql-upload" className="cursor-pointer">
+                      <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-lg font-medium text-gray-700">
+                        {file ? file.name : "Click to upload SQL file"}
+                      </p>
+                      <p className="text-sm text-gray-500">Supports .sql files up to 10MB</p>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Paste Text Method */}
+              {inputMethod === "paste" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Paste your SQL schema here:</label>
+                    <Textarea
+                      value={sqlContent}
+                      onChange={(e) => {
+                        setSqlContent(e.target.value)
+                        setFile(null) // Clear file when pasting
+                      }}
+                      placeholder="CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  ...
+);"
+                      className="h-48 font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* SQL Content Preview (only show for file upload) */}
+              {sqlContent && inputMethod === "upload" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">SQL Content Preview:</label>
+                  <Textarea
+                    value={sqlContent.substring(0, 500) + (sqlContent.length > 500 ? "..." : "")}
+                    readOnly
+                    className="h-32 font-mono text-sm"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <Button onClick={processSQL} disabled={!sqlContent || isProcessing} className="flex-1">
+                  {isProcessing ? "Generating..." : "Generate Dummy Data"}
+                </Button>
+                <Button onClick={resetProcess} variant="outline" disabled={isProcessing}>
+                  Reset
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Debug Info */}
+        {debugInfo && (
+          <Alert className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Debug: {debugInfo}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Error Display */}
+        {error && (
+          <Alert className="mb-8 border-red-200 bg-red-50">
+            <AlertDescription className="text-red-800">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Progress */}
+        {isProcessing && (
+          <Card className="mb-8">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Generating dummy data...</span>
+                  <span>{streamingData.length > 0 ? "Streaming..." : "Starting..."}</span>
+                </div>
+                <Progress value={streamingData.length > 0 ? 75 : 25} />
+                <p className="text-xs text-gray-500">
+                  {debugInfo || (streamingData.length > 0 ? "Receiving data stream..." : "Analyzing schema...")}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Results */}
+        {displayData && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {isProcessing ? "Generating Dummy Data..." : "Generated Dummy Data"}
+                {isProcessing && (
+                  <span className="ml-2 inline-flex items-center">
+                    <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </span>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {isProcessing
+                  ? "Your SQL INSERT statements are being generated in real-time"
+                  : "Your SQL INSERT statements with realistic dummy data"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="relative">
+                  <Textarea value={displayData} readOnly className="h-64 font-mono text-sm" />
+                  {isProcessing && (
+                    <div className="absolute bottom-2 right-2">
+                      <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">Streaming...</div>
+                    </div>
+                  )}
+                </div>
+                <Button onClick={downloadResults} className="w-full" disabled={!displayData || isProcessing}>
+                  <Download className="w-4 h-4 mr-2" />
+                  {isProcessing ? "Generation in Progress..." : "Download SQL File"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
