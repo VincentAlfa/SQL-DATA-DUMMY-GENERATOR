@@ -34,10 +34,13 @@ Requirements:
 1. Understand the table structure, data types, and constraints
 2. Identify primary keys, foreign keys, and relationships between tables
 3. Generate realistic dummy data that respects all constraints
-4. Create 10 records per table
+4. Strictly generate **exactly 20 records per table** — no more, no less.
 5. Ensure foreign key relationships are maintained
 6. Use realistic data (names, emails, dates, etc.)
 7. Return only the INSERT statements, no explanations
+8. For each table, generate a single INSERT INTO statement containing all 20 records (use comma-separated value groups)
+9. Maintain SQL syntax consistency and ensure statements can be executed without errors
+10. If a table includes an 'id' column (or any auto-increment primary key), include the id values explicitly in the INSERT statement
 
 SQL Schema:
 ${sqlSchema}
@@ -46,7 +49,7 @@ Generate INSERT statements with realistic dummy data:
 `;
 
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-2.5-flash-lite'),
       prompt,
     });
 
