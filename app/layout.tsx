@@ -4,9 +4,9 @@ import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'SQL Dummy Data Generator',
+  description: 'Generate realistic dummy data INSERT statements from your SQL schema',
+  generator: 'SQL Dummy Data Generator',
 }
 
 export default function RootLayout({

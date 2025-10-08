@@ -1,32 +1,54 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { Upload, Download, FileText, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { AlertCircle, Download, FileText, Upload } from "lucide-react"
+import type React from "react"
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+
+const formSchema = z.object({
+  sqlContent: z.string().min(1, "SQL schema is required"),
+  inputMethod: z.enum(["upload", "paste"]),
+  file: z.instanceof(File).optional(),
+})
+
+type FormData = z.infer<typeof formSchema>
 
 export default function SQLDummyDataGenerator() {
-  const [file, setFile] = useState<File | null>(null)
-  const [sqlContent, setSqlContent] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [generatedData, setGeneratedData] = useState("")
   const [streamingData, setStreamingData] = useState("")
   const [error, setError] = useState("")
-  const [inputMethod, setInputMethod] = useState<"upload" | "paste">("upload")
   const [debugInfo, setDebugInfo] = useState("")
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      sqlContent: "",
+      inputMethod: "upload",
+      file: undefined,
+    },
+  })
+
+  const watchedInputMethod = form.watch("inputMethod")
+  const watchedSqlContent = form.watch("sqlContent")
+  const watchedFile = form.watch("file")
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0]
     if ((uploadedFile && uploadedFile.type === "application/sql") || uploadedFile?.name.endsWith(".sql")) {
-      setFile(uploadedFile)
+      form.setValue("file", uploadedFile)
       const reader = new FileReader()
       reader.onload = (e) => {
-        setSqlContent(e.target?.result as string)
+        const content = e.target?.result as string
+        form.setValue("sqlContent", content)
       }
       reader.readAsText(uploadedFile)
       setError("")
@@ -35,8 +57,8 @@ export default function SQLDummyDataGenerator() {
     }
   }
 
-  const processSQL = async () => {
-    if (!sqlContent) {
+  const processSQL = async (data: FormData) => {
+    if (!data.sqlContent) {
       setError("Please provide SQL schema first")
       return
     }
@@ -55,7 +77,7 @@ export default function SQLDummyDataGenerator() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ sqlSchema: sqlContent }),
+        body: JSON.stringify({ sqlSchema: data.sqlContent }),
       })
 
       setDebugInfo(`Response status: ${response.status}`)
@@ -112,12 +134,10 @@ export default function SQLDummyDataGenerator() {
                   }
                 }
               } else {
-                // Try direct text
                 accumulatedData += line
                 setStreamingData(accumulatedData)
               }
             } catch (parseError) {
-              // If JSON parsing fails, treat as plain text
               console.log("Parse error, treating as text:", line.substring(0, 50))
               accumulatedData += line
               setStreamingData(accumulatedData)
@@ -152,14 +172,16 @@ export default function SQLDummyDataGenerator() {
   }
 
   const resetProcess = () => {
-    setFile(null)
-    setSqlContent("")
+    form.reset({
+      sqlContent: "",
+      inputMethod: "upload",
+      file: undefined,
+    })
     setIsProcessing(false)
     setGeneratedData("")
     setStreamingData("")
     setError("")
     setDebugInfo("")
-    setInputMethod("upload")
   }
 
   const displayData = generatedData || streamingData
@@ -172,98 +194,171 @@ export default function SQLDummyDataGenerator() {
           <p className="text-lg text-gray-600">Upload your SQL schema and let AI generate realistic dummy data</p>
         </div>
 
-        {/* Input Method Selection */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>SQL Schema Input</CardTitle>
-            <CardDescription>Choose how you want to provide your SQL schema</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Method Selection Tabs */}
-              <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                <button
-                  onClick={() => setInputMethod("upload")}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                    inputMethod === "upload" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <Upload className="w-4 h-4 inline mr-2" />
-                  Upload File
-                </button>
-                <button
-                  onClick={() => setInputMethod("paste")}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                    inputMethod === "paste" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <FileText className="w-4 h-4 inline mr-2" />
-                  Paste Text
-                </button>
-              </div>
+        {/* Form */}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(processSQL)} className="space-y-8">
+            {/* Input Method Selection */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>SQL Schema Input</CardTitle>
+                <CardDescription>Choose how you want to provide your SQL schema</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* Method Selection Field */}
+                  <FormField
+                    control={form.control}
+                    name="inputMethod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Input Method</FormLabel>
+                        <FormControl>
+                          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                field.onChange("upload")
+                                form.setValue("sqlContent", "")
+                                form.setValue("file", undefined)
+                              }}
+                              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                                field.value === "upload"
+                                  ? "bg-white text-gray-900 shadow-sm"
+                                  : "text-gray-600 hover:text-gray-900"
+                              }`}
+                            >
+                              <Upload className="w-4 h-4 inline mr-2" />
+                              Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                field.onChange("paste")
+                                form.setValue("file", undefined)
+                              }}
+                              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                                field.value === "paste"
+                                  ? "bg-white text-gray-900 shadow-sm"
+                                  : "text-gray-600 hover:text-gray-900"
+                              }`}
+                            >
+                              <FileText className="w-4 h-4 inline mr-2" />
+                              Paste Text
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              {/* File Upload Method */}
-              {inputMethod === "upload" && (
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    <input type="file" accept=".sql" onChange={handleFileUpload} className="hidden" id="sql-upload" />
-                    <label htmlFor="sql-upload" className="cursor-pointer">
-                      <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-lg font-medium text-gray-700">
-                        {file ? file.name : "Click to upload SQL file"}
-                      </p>
-                      <p className="text-sm text-gray-500">Supports .sql files up to 10MB</p>
-                    </label>
-                  </div>
-                </div>
-              )}
+                  {/* File Upload Method */}
+                  {watchedInputMethod === "upload" && (
+                    <FormField
+                      control={form.control}
+                      name="file"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SQL File</FormLabel>
+                          <FormControl>
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                              <input
+                                type="file"
+                                accept=".sql"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                                id="sql-upload"
+                              />
+                              <label htmlFor="sql-upload" className="cursor-pointer">
+                                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <p className="text-lg font-medium text-gray-700">
+                                  {watchedFile ? watchedFile.name : "Click to upload SQL file"}
+                                </p>
+                                <p className="text-sm text-gray-500">Supports .sql files up to 10MB</p>
+                              </label>
+                            </div>
+                          </FormControl>
+                          <FormDescription>Upload a .sql file containing your database schema</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-              {/* Paste Text Method */}
-              {inputMethod === "paste" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Paste your SQL schema here:</label>
-                    <Textarea
-                      value={sqlContent}
-                      onChange={(e) => {
-                        setSqlContent(e.target.value)
-                        setFile(null) // Clear file when pasting
-                      }}
-                      placeholder="CREATE TABLE users (
+                  {/* Paste Text Method */}
+                  {watchedInputMethod === "paste" && (
+                    <FormField
+                      control={form.control}
+                      name="sqlContent"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SQL Schema</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e.target.value)
+                                form.setValue("file", undefined) // Clear file when pasting
+                              }}
+                              placeholder="CREATE TABLE users (
   id INT PRIMARY KEY AUTO_INCREMENT,
   username VARCHAR(50) UNIQUE NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   ...
 );"
-                      className="h-48 font-mono text-sm"
+                              className="h-48 font-mono text-sm"
+                            />
+                          </FormControl>
+                          <FormDescription>Paste your SQL schema directly into this text area</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
+                  )}
+
+                  {/* SQL Content Preview (only show for file upload) */}
+                  {watchedSqlContent && watchedInputMethod === "upload" && (
+                    <FormField
+                      control={form.control}
+                      name="sqlContent"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SQL Content Preview</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              value={field.value.substring(0, 500) + (field.value.length > 500 ? "..." : "")}
+                              readOnly
+                              className="h-32 font-mono text-sm"
+                            />
+                          </FormControl>
+                          <FormDescription>Preview of your uploaded SQL schema</FormDescription>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  <div className="flex gap-4">
+                    <Button 
+                      type="submit" 
+                      disabled={!watchedSqlContent || isProcessing} 
+                      className="flex-1"
+                    >
+                      {isProcessing ? "Generating..." : "Generate Dummy Data"}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      onClick={resetProcess} 
+                      variant="outline" 
+                      disabled={isProcessing}
+                    >
+                      Reset
+                    </Button>
                   </div>
                 </div>
-              )}
-
-              {/* SQL Content Preview (only show for file upload) */}
-              {sqlContent && inputMethod === "upload" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">SQL Content Preview:</label>
-                  <Textarea
-                    value={sqlContent.substring(0, 500) + (sqlContent.length > 500 ? "..." : "")}
-                    readOnly
-                    className="h-32 font-mono text-sm"
-                  />
-                </div>
-              )}
-
-              <div className="flex gap-4">
-                <Button onClick={processSQL} disabled={!sqlContent || isProcessing} className="flex-1">
-                  {isProcessing ? "Generating..." : "Generate Dummy Data"}
-                </Button>
-                <Button onClick={resetProcess} variant="outline" disabled={isProcessing}>
-                  Reset
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </form>
+        </Form>
 
         {/* Debug Info */}
         {debugInfo && (
