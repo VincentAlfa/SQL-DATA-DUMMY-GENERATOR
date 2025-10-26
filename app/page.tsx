@@ -3,6 +3,7 @@
 import { SQLCodeDisplay } from '@/components/sql-code-display/sql-code-display';
 import { SQLFileUpload } from '@/components/sql-file-upload/sql-file-upload';
 import { SQLInputMethod } from '@/components/sql-input-method/sql-input-method';
+import { TableConfig } from '@/components/table-config/table-config';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,8 +19,10 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { useSQLGenerator } from '@/hooks/use-sql-generator';
+import { detectTablesFromSQL, TableInfo } from '@/lib/detectTableFromSQL';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type React from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -27,11 +30,13 @@ const formSchema = z.object({
   sqlContent: z.string(),
   inputMethod: z.enum(['upload', 'paste']),
   file: z.instanceof(File).optional(),
+  tableConfigs: z.record(z.string(), z.number().min(1)).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 export default function SQLDummyDataGenerator() {
+  const [detectedTables, setDetectedTables] = useState<TableInfo[]>([]);
   const {
     isProcessing,
     generatedData,
@@ -50,12 +55,28 @@ export default function SQLDummyDataGenerator() {
       sqlContent: '',
       inputMethod: 'upload',
       file: undefined,
+      tableConfigs: {},
     },
   });
 
   const watchedInputMethod = form.watch('inputMethod');
   const watchedSqlContent = form.watch('sqlContent');
   const watchedFile = form.watch('file');
+
+  useEffect(() => {
+    if (watchedSqlContent) {
+      const tables = detectTablesFromSQL(watchedSqlContent);
+      setDetectedTables(tables);
+
+      const configs: Record<string, number> = {};
+      tables.forEach((table) => {
+        configs[table.name] = 20;
+      });
+      form.setValue('tableConfigs', configs);
+    } else {
+      setDetectedTables([]);
+    }
+  }, [watchedSqlContent, form]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
@@ -85,7 +106,7 @@ export default function SQLDummyDataGenerator() {
   };
 
   const onSubmit = (data: FormData) => {
-    processSQL(data.sqlContent);
+    processSQL(data.sqlContent, data.tableConfigs || {});
   };
 
   const displayData = generatedData || streamingData;
@@ -169,6 +190,10 @@ export default function SQLDummyDataGenerator() {
                         </FormItem>
                       )}
                     />
+                  )}
+
+                  {watchedSqlContent && detectedTables.length > 0 && (
+                    <TableConfig form={form} tables={detectedTables} />
                   )}
 
                   <div className='flex gap-4'>

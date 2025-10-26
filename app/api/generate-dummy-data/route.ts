@@ -1,11 +1,10 @@
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
-import { streamText } from 'ai';
 import { google } from '@ai-sdk/google';
+import { streamText } from 'ai';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { sqlSchema } = await request.json();
+    const { sqlSchema, tableConfigs } = await request.json();
 
     if (!sqlSchema) {
       return NextResponse.json({ error: 'SQL schema is required' }, { status: 400 });
@@ -18,7 +17,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Starting generation with Gemini...');
+    let tableInstructions = '';
+    if (tableConfigs && Object.keys(tableConfigs).length > 0) {
+      tableInstructions = '\n\nRecords per table:\n';
+      for (const [tableName, recordCount] of Object.entries(tableConfigs)) {
+        tableInstructions += `- ${tableName}: Generate exactly ${recordCount} records\n`;
+      }
+    } else {
+      tableInstructions = '\n\nGenerate exactly 20 records per table.\n';
+    }
 
     const prompt = `
 You are an expert SQL developer. Analyze the following SQL schema and generate realistic dummy data INSERT statements.
@@ -27,11 +34,11 @@ Requirements:
 1. Understand the table structure, data types, and constraints
 2. Identify primary keys, foreign keys, and relationships between tables
 3. Generate realistic dummy data that respects all constraints
-4. Strictly generate **exactly 20 records per table** — no more, no less.
+4. ${tableInstructions}
 5. Ensure foreign key relationships are maintained
 6. Use realistic data (names, emails, dates, etc.)
 7. Return only the INSERT statements, no explanations
-8. For each table, generate a single INSERT INTO statement containing all 20 records (use comma-separated value groups)
+8. For each table, generate a single INSERT INTO statement containing all records (use comma-separated value groups)
 9. Maintain SQL syntax consistency and ensure statements can be executed without errors
 10. If a table includes an 'id' column (or any auto-increment primary key), include the id values explicitly in the INSERT statement
 
@@ -42,7 +49,7 @@ Generate INSERT statements with realistic dummy data:
 `;
 
     const result = streamText({
-      model: google('gemini-2.5-flash-lite'),
+      model: google('gemini-2.5-flash'),
       prompt,
     });
 

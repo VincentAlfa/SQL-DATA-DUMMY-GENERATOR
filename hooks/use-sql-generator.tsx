@@ -8,7 +8,7 @@ export function useSQLGenerator() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const processSQL = async (sqlContent: string) => {
+  const processSQL = async (sqlContent: string, tableConfigs: Record<string, number> = {}) => {
     if (!sqlContent) {
       setError('Please provide SQL schema first');
       return;
@@ -25,7 +25,10 @@ export function useSQLGenerator() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ sqlSchema: sqlContent }),
+        body: JSON.stringify({
+          sqlSchema: sqlContent,
+          tableConfigs,
+        }),
       });
 
       if (!response.ok) {
