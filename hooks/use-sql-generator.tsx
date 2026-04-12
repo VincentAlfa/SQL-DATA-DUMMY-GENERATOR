@@ -1,90 +1,46 @@
-import { useState } from 'react';
-import { formatSQLOutput } from '@/lib/formatSQL';
+import { useCallback, useMemo, useState } from 'react';
+import { useCompletion } from '@ai-sdk/react';
+
+function stripCodeFences(text: string) {
+  return text
+    .replace(/^```(?:sql)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+}
 
 export function useSQLGenerator() {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [generatedData, setGeneratedData] = useState('');
-  const [streamingData, setStreamingData] = useState('');
-  const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [manualError, setManualError] = useState('');
 
-  const processSQL = async (sqlContent: string, tableConfigs: Record<string, number> = {}) => {
-    if (!sqlContent) {
-      setError('Please provide SQL schema first');
-      return;
-    }
+  const { completion, complete, isLoading, error, setCompletion, stop } = useCompletion({
+    api: '/api/generate-dummy-data',
+    streamProtocol: 'text',
+  });
 
-    setIsProcessing(true);
-    setError('');
-    setGeneratedData('');
-    setStreamingData('');
+  const streamingData = useMemo(() => stripCodeFences(completion), [completion]);
+  const generatedData = isLoading ? '' : streamingData;
+  const combinedError = manualError || error?.message || '';
 
-    try {
-      const response = await fetch('/api/generate-dummy-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sqlSchema: sqlContent,
-          tableConfigs,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+  const processSQL = useCallback(
+    async (sqlContent: string, tableConfigs: Record<string, number> = {}) => {
+      if (!sqlContent.trim()) {
+        setManualError('Please provide SQL schema first');
+        return;
       }
 
-      if (!response.body) {
-        throw new Error('No response body received');
+      setManualError('');
+      setCompletion('');
+
+      try {
+        await complete(sqlContent, { body: { tableConfigs } });
+      } catch (err) {
+        setManualError(err instanceof Error ? err.message : 'An unexpected error occurred');
       }
+    },
+    [complete, setCompletion],
+  );
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedData = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter((line) => line.trim());
-
-        for (const line of lines) {
-          try {
-            if (line.startsWith('0:')) {
-              const jsonStr = line.slice(2);
-              const parsed = JSON.parse(jsonStr);
-
-              if (parsed.type === 'text-delta' && parsed.textDelta) {
-                accumulatedData += parsed.textDelta;
-                setStreamingData(formatSQLOutput(accumulatedData));
-              }
-            } else {
-              accumulatedData += line;
-              setStreamingData(formatSQLOutput(accumulatedData));
-            }
-          } catch (parseError) {
-            console.error('Error parsing chunk:', parseError, 'Raw line:', line);
-            accumulatedData += chunk;
-            setStreamingData(formatSQLOutput(accumulatedData));
-          }
-        }
-      }
-
-      const formattedData = formatSQLOutput(accumulatedData);
-      setGeneratedData(formattedData);
-      setStreamingData(formattedData);
-    } catch (err) {
-      console.error('Error in processSQL:', err);
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const downloadResults = () => {
+  const downloadResults = useCallback(() => {
     const dataToDownload = generatedData || streamingData;
     if (!dataToDownload) return;
 
@@ -97,28 +53,29 @@ export function useSQLGenerator() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
+  }, [generatedData, streamingData]);
 
-  const copyToClipboard = async () => {
-    const dataToDownload = generatedData || streamingData;
-    if (!dataToDownload) return;
+  const copyToClipboard = useCallback(async () => {
+    const dataToCopy = generatedData || streamingData;
+    if (!dataToCopy) return;
 
-    await navigator.clipboard.writeText(dataToDownload);
+    await navigator.clipboard.writeText(dataToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [generatedData, streamingData]);
+
+  const setError = useCallback((value: string) => setManualError(value), []);
 
   return {
-    isProcessing,
+    isProcessing: isLoading,
     generatedData,
     streamingData,
-    error,
+    error: combinedError,
     copied,
     processSQL,
     downloadResults,
     copyToClipboard,
     setError,
-    setGeneratedData,
-    setStreamingData,
+    stop,
   };
 }
