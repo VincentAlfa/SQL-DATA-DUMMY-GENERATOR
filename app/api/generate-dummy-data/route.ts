@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       return NextResponse.json(
         { error: 'Google Generative AI API key is not configured' },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -49,7 +49,7 @@ Generate INSERT statements with realistic dummy data:
 `;
 
     const result = streamText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-flash-latest'),
       prompt,
     });
 
@@ -62,7 +62,7 @@ Generate INSERT statements with realistic dummy data:
           error instanceof Error ? error.message : 'Unknown error'
         }`,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
