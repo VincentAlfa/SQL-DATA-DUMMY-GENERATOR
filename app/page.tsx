@@ -154,12 +154,6 @@ export default function SQLDummyDataGenerator() {
                                 field.onChange(e.target.value);
                                 form.setValue('file', undefined);
                               }}
-                              placeholder='CREATE TABLE users (
-                                            id INT PRIMARY KEY AUTO_INCREMENT,
-                                            username VARCHAR(50) UNIQUE NOT NULL,
-                                            email VARCHAR(100) UNIQUE NOT NULL,
-                                            ...
-                                          );'
                               className='h-48 font-mono text-sm'
                             />
                           </FormControl>
