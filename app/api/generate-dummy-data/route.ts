@@ -1,13 +1,18 @@
 import { google } from '@ai-sdk/google';
 import { streamText } from 'ai';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+type RequestBody = {
+  prompt?: string;
+  tableConfigs?: Record<string, number>;
+};
+
+export async function POST(request: Request) {
   try {
-    const { sqlSchema, tableConfigs } = await request.json();
+    const { prompt, tableConfigs }: RequestBody = await request.json();
 
-    if (!sqlSchema) {
-      return NextResponse.json({ error: 'SQL schema is required' }, { status: 400 });
+    if (!prompt || !prompt.trim()) {
+      return NextResponse.json({ error: 'Please provide SQL schema.' }, { status: 400 });
     }
 
     if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
@@ -17,45 +22,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let tableInstructions = '';
+    let tableInstructions = 'Generate exactly 20 records per table.';
     if (tableConfigs && Object.keys(tableConfigs).length > 0) {
-      tableInstructions = '\n\nRecords per table:\n';
-      for (const [tableName, recordCount] of Object.entries(tableConfigs)) {
-        tableInstructions += `- ${tableName}: Generate exactly ${recordCount} records\n`;
-      }
-    } else {
-      tableInstructions = '\n\nGenerate exactly 20 records per table.\n';
+      const perTable = Object.entries(tableConfigs)
+        .map(
+          ([tableName, recordCount]) =>
+            `- ${tableName}: Generate exactly ${recordCount} records`,
+        )
+        .join('\n');
+
+      tableInstructions = `Records per table:\n${perTable}`;
     }
 
-    const prompt = `
-You are an expert SQL developer. Analyze the following SQL schema and generate realistic dummy data INSERT statements.
-
-Requirements:
-1. Understand the table structure, data types, and constraints
-2. Identify primary keys, foreign keys, and relationships between tables
-3. Generate realistic dummy data that respects all constraints
-4. ${tableInstructions}
-5. Ensure foreign key relationships are maintained
-6. Use realistic data (names, emails, dates, etc.)
-7. Return only the INSERT statements, no explanations
-8. For each table, generate a single INSERT INTO statement containing all records (use comma-separated value groups)
-9. Maintain SQL syntax consistency and ensure statements can be executed without errors
-10. If a table includes an 'id' column (or any auto-increment primary key), include the id values explicitly in the INSERT statement
-
-SQL Schema:
-${sqlSchema}
-
-Generate INSERT statements with realistic dummy data:
-`;
+    const systemPrompt = [
+      'You are an expert SQL developer.',
+      'Analyze the SQL schema provided by the user and generate realistic dummy data INSERT statements.',
+      '',
+      'Requirements:',
+      '1. CRITICAL RULE: Input Validation. First, verify the user input. The input MUST be a strictly valid SQL schema. If the input is plain text, gibberish, conversational, missing, OR contains any SQL syntax errors, malformed constraints, or typos, IMMEDIATELY stop and return ONLY the exact string: "ERROR: Invalid SQL schema provided." Do not ask for the schema, do not ask for clarification, do not explain, and do not generate any data.',
+      '2. Understand the table structure, data types, nullability, and constraints.',
+      "3. CRITICAL SQL SYNTAX: Escape single quotes inside string values by doubling them (e.g., 'O''Connor') to prevent fatal syntax errors.",
+      '4. DEPENDENCY & INTEGRITY: Order INSERTs logically (Parent tables before Child tables). Foreign key values in child tables MUST STRICTLY match the exact primary key values you just generated for their parent tables. Do not invent orphan foreign keys.',
+      '5. Respect NULL constraints: If a column allows NULL, occasionally insert NULL values to make data realistic for testing. Never insert NULL into NOT NULL columns.',
+      `6. ${tableInstructions}`,
+      '7. Use realistic dummy data. For dates and timestamps, strictly use standard SQL format (YYYY-MM-DD HH:MM:SS).',
+      '8. For each table, generate exactly one INSERT INTO statement utilizing a multiple-row values list (comma-separated rows).',
+      '9. PK HANDLING: If a primary key is an auto-increment integer, include values explicitly and sequentially. If it is a UUID, generate valid random UUID strings. Never generate duplicate primary keys.',
+      '10. OUTPUT FORMAT: Return ONLY the executable SQL code. Absolutely no conversational text, greetings, or explanations. Wrap the entire output inside a single ```sql block.',
+    ].join('\n');
 
     const result = streamText({
-      model: google('gemini-flash-latest'),
+      model: google('gemini-flash-lite-latest'),
+      system: systemPrompt,
       prompt,
     });
 
     return result.toTextStreamResponse();
   } catch (error) {
-    console.error('Error in API route:', error);
+    console.error('Error in generate-dummy-data route:', error);
     return NextResponse.json(
       {
         error: `Failed to generate dummy data: ${

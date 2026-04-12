@@ -32,11 +32,15 @@ export function TableConfig({ form, tables }: TableConfigProps) {
                   <FormLabel className='capitalize'>{table.name}</FormLabel>
                   <FormControl>
                     <Input
-                      type='number'
-                      placeholder='enter number of records'
+                      type='text'
+                      inputMode='numeric'
+                      placeholder='Enter number of records'
                       {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                      value={field.value}
+                      value={field.value ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '');
+                        field.onChange(value);
+                      }}
                     />
                   </FormControl>
                 </FormItem>

@@ -20,7 +20,7 @@ export function SQLFileUpload({ form, onFileUpload, fileName }: SQLFileUploadPro
     <FormField
       control={form.control}
       name='file'
-      render={({ field }) => (
+      render={() => (
         <FormItem>
           <FormLabel>SQL File</FormLabel>
           <FormControl>
