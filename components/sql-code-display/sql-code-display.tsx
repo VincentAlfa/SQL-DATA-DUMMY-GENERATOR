@@ -49,23 +49,29 @@ export function SQLCodeDisplay({
               </Button>
             </div>
 
-            <div className='rounded-b-lg overflow-hidden border border-gray-200 max-h-96 overflow-y-auto'>
-              <SyntaxHighlighter
-                showLineNumbers={false}
-                language='sql'
-                style={vs}
-                customStyle={{
-                  margin: 0,
-                  padding: '1rem',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.5',
-                  borderTopLeftRadius: 0,
-                  borderTopRightRadius: 0,
-                }}
-                wrapLines
-              >
-                {displayData}
-              </SyntaxHighlighter>
+            <div className='rounded-b-lg overflow-hidden border border-gray-200 max-h-96 overflow-y-auto bg-white'>
+              {isProcessing ? (
+                <pre className='m-0 p-4 text-sm leading-6 font-mono whitespace-pre-wrap break-words'>
+                  {displayData}
+                </pre>
+              ) : (
+                <SyntaxHighlighter
+                  showLineNumbers={false}
+                  language='sql'
+                  style={vs}
+                  customStyle={{
+                    margin: 0,
+                    padding: '1rem',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.5',
+                    borderTopLeftRadius: 0,
+                    borderTopRightRadius: 0,
+                  }}
+                  wrapLines
+                >
+                  {displayData}
+                </SyntaxHighlighter>
+              )}
             </div>
 
             {isProcessing && (

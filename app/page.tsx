@@ -30,7 +30,7 @@ const formSchema = z.object({
   sqlContent: z.string(),
   inputMethod: z.enum(['upload', 'paste']),
   file: z.instanceof(File).optional(),
-  tableConfigs: z.record(z.string(), z.number().min(1)).optional(),
+  tableConfigs: z.record(z.string(), z.string()).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -68,9 +68,9 @@ export default function SQLDummyDataGenerator() {
       const tables = detectTablesFromSQL(watchedSqlContent);
       setDetectedTables(tables);
 
-      const configs: Record<string, number> = {};
+      const configs: Record<string, string> = {};
       tables.forEach((table) => {
-        configs[table.name] = 20;
+        configs[table.name] = '20';
       });
       form.setValue('tableConfigs', configs);
     } else {
@@ -106,7 +106,14 @@ export default function SQLDummyDataGenerator() {
   };
 
   const onSubmit = (data: FormData) => {
-    processSQL(data.sqlContent, data.tableConfigs || {});
+    const normalizedTableConfigs = Object.fromEntries(
+      Object.entries(data.tableConfigs || {}).map(([tableName, value]) => {
+        const parsed = Number.parseInt(value, 10);
+        return [tableName, Number.isFinite(parsed) && parsed >= 1 ? parsed : 20];
+      }),
+    );
+
+    processSQL(data.sqlContent, normalizedTableConfigs);
   };
 
   const displayData = generatedData || streamingData;

@@ -15,6 +15,7 @@ export function useSQLGenerator() {
   const { completion, complete, isLoading, error, setCompletion, stop } = useCompletion({
     api: '/api/generate-dummy-data',
     streamProtocol: 'text',
+    experimental_throttle: 120,
   });
 
   const streamingData = useMemo(() => stripCodeFences(completion), [completion]);
