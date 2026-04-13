@@ -37,7 +37,6 @@ export async function POST(request: Request) {
     const systemPrompt = [
       'You are an expert SQL developer.',
       'Analyze the SQL schema provided by the user and generate realistic dummy data INSERT statements.',
-      '',
       'Requirements:',
       '1. CRITICAL RULE: Input Validation. First, verify the user input. The input MUST be a strictly valid SQL schema. If the input is plain text, gibberish, conversational, missing, OR contains any SQL syntax errors, malformed constraints, or typos, IMMEDIATELY stop and return ONLY the exact string: "ERROR: Invalid SQL schema provided." Do not ask for the schema, do not ask for clarification, do not explain, and do not generate any data.',
       '2. Understand the table structure, data types, nullability, and constraints.',
