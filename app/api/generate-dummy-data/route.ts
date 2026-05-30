@@ -1,4 +1,5 @@
 import { sanitizeInstruction } from '@/lib/sanitizeInput';
+import { ANALYSIS_DELIM } from '@/lib/utils';
 import { google } from '@ai-sdk/google';
 import { streamText } from 'ai';
 import { NextResponse } from 'next/server';
@@ -69,17 +70,24 @@ export async function POST(request: Request) {
     7. Use realistic dummy data. For dates and timestamps, strictly use standard SQL format (YYYY-MM-DD HH:MM:SS).
     8. For each table, generate exactly one INSERT INTO statement utilizing a multiple-row values list (comma-separated rows).
     9. PK HANDLING: If a primary key is an auto-increment integer, include values explicitly and sequentially. If it is a UUID, generate valid random UUID strings. Never generate duplicate primary keys.
-    10. OUTPUT FORMAT: Return ONLY the executable SQL code. Absolutely no conversational text, greetings, or explanations. Wrap the entire output inside a single \`\`\`sql block.${instructionBlock}`;
+    10. OUTPUT FORMAT: Return ONLY the executable SQL code. Absolutely no conversational text, greetings, explanations, comments, ellipses, or placeholders (e.g., "... (100 rows total) ..."). Output every row explicitly. Wrap the entire output inside a single \`\`\`sql block.${instructionBlock}`;
 
-    const analysisPrompt = `Please provide a brief, 'big picture' summary of the following SQL schema. I don't need a detailed list of every single column and data type. Instead, focus on:
+    const analysisPrompt = `Provide a very brief summary of this SQL schema.
 
-1. **The Core Purpose:** What kind of system is this database modeling?
-2. **The Main Entities:** What are the primary tables?
-3. **The Relationships:** How do these tables connect to each other (e.g., Many-to-Many)?
-4. **Data Integrity:** What are the key rules or constraints keeping the data clean (e.g., cascading deletes, unique identifiers)?`;
+    Rules:
+    - Output MUST be a numbered list (1, 2, 3...).
+    - Max 4 numbered points total.
+    - Max 2 sentences per point.
+    - No extra explanations or examples.
+    - Keep it under 90 words.
+
+    Focus:
+    1) Core purpose
+    2) Main entities (just table names)
+    3) Relationships (explicitly state which tables connect and exactly how, e.g., 'One-to-many between Users and Orders')`;
 
     const sqlResult = streamText({
-      model: google('gemini-flash-lite-latest'),
+      model: google('gemini-flash-latest'),
       system: systemPrompt,
       prompt,
     });
@@ -99,11 +107,13 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         for await (const chunk of sqlResult.textStream) {
-          controller.enqueue(encoder.encode(`__SQL__${chunk}`));
+          controller.enqueue(encoder.encode(chunk));
         }
 
+        controller.enqueue(encoder.encode(ANALYSIS_DELIM));
+
         for await (const chunk of analysisResult.textStream) {
-          controller.enqueue(encoder.encode(`__ANALYSIS__${chunk}`));
+          controller.enqueue(encoder.encode(chunk));
         }
 
         controller.close();

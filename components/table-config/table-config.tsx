@@ -54,8 +54,8 @@ export function TableConfig({ form, tables }: TableConfigProps) {
                 name={`tableInstructions.${table.name}`}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className='capitalize'>
-                      Custom instructions for {table.name}
+                    <FormLabel>
+                      Custom instructions for table {table.name}
                     </FormLabel>
                     <FormControl>
                       <Textarea

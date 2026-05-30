@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useCompletion } from '@ai-sdk/react';
+import { ANALYSIS_DELIM } from '@/lib/utils';
 
 function stripCodeFences(text: string) {
   return text
@@ -8,32 +9,15 @@ function stripCodeFences(text: string) {
     .trim();
 }
 
-function parseTaggedStream(text: string) {
-  const tagRegex = /__(SQL|ANALYSIS)__/g;
-  let sql = '';
-  let analysis = '';
-  let lastIndex = 0;
-  let current: 'SQL' | 'ANALYSIS' = 'SQL';
-
-  for (const match of text.matchAll(tagRegex)) {
-    const segment = text.slice(lastIndex, match.index);
-    if (current === 'SQL') {
-      sql += segment;
-    } else {
-      analysis += segment;
-    }
-    current = match[1] as 'SQL' | 'ANALYSIS';
-    lastIndex = (match.index ?? 0) + match[0].length;
+function splitStream(text: string) {
+  const idx = text.indexOf(ANALYSIS_DELIM);
+  if (idx === -1) {
+    return { sql: text, analysis: '' };
   }
-
-  const remainder = text.slice(lastIndex);
-  if (current === 'SQL') {
-    sql += remainder;
-  } else {
-    analysis += remainder;
-  }
-
-  return { sql, analysis };
+  return {
+    sql: text.slice(0, idx),
+    analysis: text.slice(idx + ANALYSIS_DELIM.length),
+  };
 }
 
 export function useSQLGenerator() {
@@ -47,7 +31,7 @@ export function useSQLGenerator() {
   });
 
   const { sql: sqlCompletion, analysis: analysisCompletion } = useMemo(
-    () => parseTaggedStream(completion),
+    () => splitStream(completion),
     [completion],
   );
 
