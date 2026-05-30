@@ -8,6 +8,34 @@ function stripCodeFences(text: string) {
     .trim();
 }
 
+function parseTaggedStream(text: string) {
+  const tagRegex = /__(SQL|ANALYSIS)__/g;
+  let sql = '';
+  let analysis = '';
+  let lastIndex = 0;
+  let current: 'SQL' | 'ANALYSIS' = 'SQL';
+
+  for (const match of text.matchAll(tagRegex)) {
+    const segment = text.slice(lastIndex, match.index);
+    if (current === 'SQL') {
+      sql += segment;
+    } else {
+      analysis += segment;
+    }
+    current = match[1] as 'SQL' | 'ANALYSIS';
+    lastIndex = (match.index ?? 0) + match[0].length;
+  }
+
+  const remainder = text.slice(lastIndex);
+  if (current === 'SQL') {
+    sql += remainder;
+  } else {
+    analysis += remainder;
+  }
+
+  return { sql, analysis };
+}
+
 export function useSQLGenerator() {
   const [copied, setCopied] = useState(false);
   const [manualError, setManualError] = useState('');
@@ -18,12 +46,24 @@ export function useSQLGenerator() {
     experimental_throttle: 50,
   });
 
-  const streamingData = useMemo(() => stripCodeFences(completion), [completion]);
-  const generatedData = isLoading ? '' : streamingData;
+  const { sql: sqlCompletion, analysis: analysisCompletion } = useMemo(
+    () => parseTaggedStream(completion),
+    [completion],
+  );
+
+  const streamingSQL = useMemo(() => stripCodeFences(sqlCompletion), [sqlCompletion]);
+  const streamingAnalysis = useMemo(() => analysisCompletion.trim(), [analysisCompletion]);
+
+  const generatedData = isLoading ? '' : streamingSQL;
+  const analysisData = isLoading ? '' : streamingAnalysis;
   const combinedError = manualError || error?.message || '';
 
   const processSQL = useCallback(
-    async (sqlContent: string, tableConfigs: Record<string, number> = {}) => {
+    async (
+      sqlContent: string,
+      tableConfigs: Record<string, number> = {},
+      tableInstructions: Record<string, string> = {},
+    ) => {
       if (!sqlContent.trim()) {
         setManualError('Please provide SQL schema first');
         return;
@@ -33,7 +73,13 @@ export function useSQLGenerator() {
       setCompletion('');
 
       try {
-        await complete(sqlContent, { body: { tableConfigs } });
+        await complete(sqlContent, {
+          body: {
+            tableConfigs,
+            tableInstructions,
+            analyzeSchema: true,
+          },
+        });
       } catch (err) {
         setManualError(err instanceof Error ? err.message : 'An unexpected error occurred');
       }
@@ -42,7 +88,7 @@ export function useSQLGenerator() {
   );
 
   const downloadResults = useCallback(() => {
-    const dataToDownload = generatedData || streamingData;
+    const dataToDownload = generatedData || streamingSQL;
     if (!dataToDownload) return;
 
     const blob = new Blob([dataToDownload], { type: 'text/sql' });
@@ -54,23 +100,24 @@ export function useSQLGenerator() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [generatedData, streamingData]);
+  }, [generatedData, streamingSQL]);
 
   const copyToClipboard = useCallback(async () => {
-    const dataToCopy = generatedData || streamingData;
+    const dataToCopy = generatedData || streamingSQL;
     if (!dataToCopy) return;
 
     await navigator.clipboard.writeText(dataToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [generatedData, streamingData]);
+  }, [generatedData, streamingSQL]);
 
   const setError = useCallback((value: string) => setManualError(value), []);
 
   return {
     isProcessing: isLoading,
     generatedData,
-    streamingData,
+    streamingData: streamingSQL,
+    analysisData,
     error: combinedError,
     copied,
     processSQL,

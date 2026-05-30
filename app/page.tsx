@@ -20,6 +20,7 @@ import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { useSQLGenerator } from '@/hooks/use-sql-generator';
 import { detectTablesFromSQL, TableInfo } from '@/lib/detectTableFromSQL';
+import { sanitizeInstruction } from '@/lib/sanitizeInput';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type React from 'react';
 import { useEffect, useState } from 'react';
@@ -31,6 +32,7 @@ const formSchema = z.object({
   inputMethod: z.enum(['upload', 'paste']),
   file: z.instanceof(File).optional(),
   tableConfigs: z.record(z.string(), z.string()).optional(),
+  tableInstructions: z.record(z.string(), z.string()).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -41,6 +43,7 @@ export default function SQLDummyDataGenerator() {
     isProcessing,
     generatedData,
     streamingData,
+    analysisData,
     error,
     copied,
     processSQL,
@@ -56,6 +59,7 @@ export default function SQLDummyDataGenerator() {
       inputMethod: 'upload',
       file: undefined,
       tableConfigs: {},
+      tableInstructions: {},
     },
   });
 
@@ -69,10 +73,13 @@ export default function SQLDummyDataGenerator() {
       setDetectedTables(tables);
 
       const configs: Record<string, string> = {};
+      const instructions: Record<string, string> = {};
       tables.forEach((table) => {
         configs[table.name] = '20';
+        instructions[table.name] = '';
       });
       form.setValue('tableConfigs', configs);
+      form.setValue('tableInstructions', instructions);
     } else {
       setDetectedTables([]);
     }
@@ -113,7 +120,14 @@ export default function SQLDummyDataGenerator() {
       }),
     );
 
-    processSQL(data.sqlContent, normalizedTableConfigs);
+    const normalizedTableInstructions = Object.fromEntries(
+      Object.entries(data.tableInstructions || {}).map(([tableName, value]) => [
+        tableName,
+        sanitizeInstruction(value || ''),
+      ]),
+    );
+
+    processSQL(data.sqlContent, normalizedTableConfigs, normalizedTableInstructions);
   };
 
   const displayData = generatedData || streamingData;
@@ -242,6 +256,7 @@ export default function SQLDummyDataGenerator() {
 
         {displayData && (
           <SQLCodeDisplay
+            analysisData={analysisData}
             displayData={displayData}
             copied={copied}
             isProcessing={isProcessing}

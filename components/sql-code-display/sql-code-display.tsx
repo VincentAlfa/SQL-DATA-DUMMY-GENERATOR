@@ -3,9 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Copy, Check, Download } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 interface SQLCodeDisplayProps {
   displayData: string;
+  analysisData: string;
   copied: boolean;
   isProcessing: boolean;
   onCopy: () => void;
@@ -14,6 +23,7 @@ interface SQLCodeDisplayProps {
 
 export function SQLCodeDisplay({
   displayData,
+  analysisData,
   copied,
   isProcessing,
   onCopy,
@@ -82,6 +92,24 @@ export function SQLCodeDisplay({
               </div>
             )}
           </div>
+          {analysisData && (
+            <Accordion
+              type='single'
+              collapsible
+              className='rounded-lg border border-gray-200 bg-white'
+            >
+              <AccordionItem value='schema-summary' className='border-0'>
+                <AccordionTrigger className='px-4 py-3 text-sm'>
+                  Show analyzed schema
+                </AccordionTrigger>
+                <AccordionContent className='px-4 pb-4'>
+                  <div className='text-sm text-gray-700'>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysisData}</ReactMarkdown>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
           <div className='flex gap-2'>
             <Button onClick={onDownload} className='flex-1' disabled={!displayData || isProcessing}>
               <Download className='w-4 h-4 mr-2' />
