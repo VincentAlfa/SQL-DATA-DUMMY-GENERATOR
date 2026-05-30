@@ -103,9 +103,7 @@ export function SQLCodeDisplay({
                   Show analyzed schema
                 </AccordionTrigger>
                 <AccordionContent className='px-4 pb-4'>
-                  <div className='text-sm text-gray-700'>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysisData}</ReactMarkdown>
-                  </div>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysisData}</ReactMarkdown>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

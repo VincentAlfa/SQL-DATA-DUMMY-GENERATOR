@@ -72,22 +72,32 @@ export async function POST(request: Request) {
     9. PK HANDLING: If a primary key is an auto-increment integer, include values explicitly and sequentially. If it is a UUID, generate valid random UUID strings. Never generate duplicate primary keys.
     10. OUTPUT FORMAT: Return ONLY the executable SQL code. Absolutely no conversational text, greetings, explanations, comments, ellipses, or placeholders (e.g., "... (100 rows total) ..."). Output every row explicitly. Wrap the entire output inside a single \`\`\`sql block.${instructionBlock}`;
 
-    const analysisPrompt = `Provide a very brief summary of this SQL schema.
+    const analysisPrompt = `Provide a concise summary of this SQL schema. You MUST format your response STRICTLY as a Markdown numbered list. Do not include any introductory or concluding text.
 
     Rules:
-    - Output MUST be a numbered list (1, 2, 3...).
-    - Max 4 numbered points total.
+    - Output MUST be a Markdown numbered list (1., 2., 3., 4., 5.).
+    - Use Markdown bolding (**text**) for the category of each point.
+    - Max 5 numbered points total.
     - Max 2 sentences per point.
-    - No extra explanations or examples.
-    - Keep it under 90 words.
+    - Keep it under 150 words total.
+    - NO conversational filler (do not say "Here is the summary").
 
-    Focus:
+    Format Template:
+    1. **Core Purpose:** [Your text here]
+    2. **Main Entities:** [Your text here]
+    3. **Key Relationships:** [Your text here]
+    4. **Data Integrity:** [Your text here]
+    5. **Conventions:** [Your text here]
+
+    Focus Areas:
     1) Core purpose
-    2) Main entities (just table names)
-    3) Relationships (explicitly state which tables connect and exactly how, e.g., 'One-to-many between Users and Orders')`;
+    2) Main entities (table names only)
+    3) Key relationships (state exactly which tables connect and how)
+    4) Data integrity rules (FKs, unique, cascade)
+    5) Any notable conventions (naming, audit columns, etc.)`;
 
     const sqlResult = streamText({
-      model: google('gemini-flash-latest'),
+      model: google('gemini-flash-lite-latest'),
       system: systemPrompt,
       prompt,
     });
