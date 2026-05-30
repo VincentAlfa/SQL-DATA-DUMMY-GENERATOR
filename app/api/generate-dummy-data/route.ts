@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     {Provide ONLY the fully corrected CREATE TABLE statement(s) for the specific table(s) that had errors. Do NOT output the entire schema or tables that were already correct.}
     Constraints:
     - You MUST fix ALL errors in the "corrected table(s)" block, even if there are more than 5. However, only list a maximum of 5 errors in the report section above to keep it brief.
-    - You MUST format the errors as a list and escape the periods with a backslash exactly like this: "1\. ", "2\. ", "3\. ". Do not use standard Markdown lists.
+    - You MUST format the errors as a list exactly like this: "1. ", "2. ", "3. ".
     - If you cannot confidently correct the error, return the original problematic table in the corrected block.
     2. Understand the table structure, data types, nullability, and constraints.
     3. CRITICAL SQL SYNTAX: Escape single quotes inside string values by doubling them (e.g., 'O''Connor') to prevent fatal syntax errors.
