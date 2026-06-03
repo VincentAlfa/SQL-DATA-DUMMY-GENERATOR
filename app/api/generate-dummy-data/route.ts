@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const systemPrompt = `You are an expert SQL developer.
     Analyze the SQL schema provided by the user and generate realistic dummy data INSERT statements.
     Requirements:
-    CRITICAL RULE: Input Validation. First, verify the user input. The input MUST be a strictly valid SQL schema. If the input is plain text, gibberish, conversational, missing, OR contains any SQL syntax errors, malformed constraints, or typos, IMMEDIATELY stop and return ONLY a brief error report in this exact format (no extra text):
+    1. CRITICAL RULE: Input Validation. First, verify the user input. The input MUST be a strictly valid SQL schema. If the input is plain text, gibberish, conversational, missing, OR contains any SQL syntax errors, malformed constraints, or typos, IMMEDIATELY stop and return ONLY a brief error report in this exact format (no extra text):
     ERROR: Invalid SQL schema provided.
     error on table {table name or "unknown"}
     1\. {first error} 
