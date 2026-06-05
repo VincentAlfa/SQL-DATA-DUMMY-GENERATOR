@@ -19,6 +19,39 @@ Generate realistic dummy data `INSERT` statements from your SQL schema using AI 
 - [Bun](https://bun.sh/) (recommended) **or** npm/yarn
 - A Google Gemini API key
 
+### Installing Node.js
+
+Download and install Node.js from the official site: https://nodejs.org/en/download
+
+Choose the **LTS** version for your operating system. To verify the installation:
+
+```bash
+node -v
+npm -v
+```
+
+### Installing Bun
+
+Bun is a fast all-in-one JavaScript runtime and package manager. Install it with a single command:
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+**Windows:**
+```powershell
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+To verify the installation:
+
+```bash
+bun -v
+```
+
+> Full installation docs: https://bun.sh/docs/installation
+
 ---
 
 ## Getting a Google Gemini API Key
@@ -41,27 +74,19 @@ cd <your-repo-folder>
 
 ### 2. Install dependencies
 
-Using **Bun** (recommended):
-
 ```bash
 bun install
 ```
 
-Using **npm**:
-
-```bash
-npm install
-```
-
 ### 3. Set up your environment variables
 
-Create a `.env.local` file in the root of the project:
+Create a `.env` file in the root of the project:
 
 ```bash
-touch .env.local
+touch .env
 ```
 
-Open `.env.local` and add your Gemini API key:
+Open `.env` and add your Gemini API key:
 
 ```env
 GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
@@ -69,22 +94,12 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
 
 Replace `your_api_key_here` with the key you copied from Google AI Studio.
 
-> **Note:** Never commit your `.env.local` file to version control. It is already listed in `.gitignore`.
-
 ---
 
 ## Running the Development Server
 
-Using **Bun**:
-
 ```bash
 bun dev
-```
-
-Using **npm**:
-
-```bash
-npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -93,18 +108,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Building for Production
 
-Using **Bun**:
-
 ```bash
 bun run build
 bun start
-```
-
-Using **npm**:
-
-```bash
-npm run build
-npm start
 ```
 
 ---
@@ -122,8 +128,8 @@ npm start
 
 ## Environment Variables
 
-| Variable                       | Description                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| Variable | Description |
+|---|---|
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Your Google Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey) |
 
 ---
