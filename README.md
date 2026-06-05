@@ -80,11 +80,7 @@ bun install
 
 ### 3. Set up your environment variables
 
-Create a `.env` file in the root of the project:
-
-```bash
-touch .env
-```
+Create a `.env` file in the root of the project
 
 Open `.env` and add your Gemini API key:
 
